@@ -16,6 +16,12 @@ interface VotingEscrow:
     def withdraw(): nonpayable
 
 
+interface Gauge:
+    def lp_token() -> address: view
+    def deposit(_value: uint256): nonpayable
+    def withdraw(_value: uint256): nonpayable
+
+
 implements: ERC20
 
 event Transfer:
@@ -40,6 +46,8 @@ WEEK: constant(uint256) = 7 * 86400  # all future times are rounded by week
 MAXTIME: constant(uint256) = 4 * 365 * 86400  # 4 years
 swrv: ERC20
 voting_escrow: VotingEscrow
+# gauge -> user -> balance
+gauge_balances: public(HashMap[address, HashMap[address, uint256]])
 
 
 @external
@@ -152,12 +160,12 @@ def _burn(_to: address, _value: uint256):
     self.balanceOf[_to] -= _value
     log Transfer(_to, ZERO_ADDRESS, _value)
 
-# Unswerve methods
+# Voting Escrow methods
 
 @external
 def deposit(_value: uint256):
     """
-    @dev Deposit SWRV into the Voting Escrow and get a 1:1 liquid claim on veSWRV.
+    @dev Deposit SWRV into Voting Escrow and get a 1:1 liquid claim on veSWRV.
     """
     self.swrv.transferFrom(msg.sender, self, _value)
 
@@ -176,7 +184,7 @@ def deposit(_value: uint256):
 @external
 def withdraw():
     """
-    @dev Reclaim SWRV from the Voting Escrow after the vote lock has expired.
+    @dev Reclaim SWRV from Voting Escrow after vote lock has expired.
     """
     locked: int128 = 0
     end: uint256 = 0
@@ -188,3 +196,26 @@ def withdraw():
     amount: uint256 = self.balanceOf[msg.sender]
     self._burn(msg.sender, amount)
     self.swrv.transfer(msg.sender, amount)
+
+# Gauge methods
+
+@external
+def deposit_gauge(_gauge: address, _value: uint256):
+    """
+    @dev Deposit LP token (e.g. SWUSD) into Liquidity Gauge.
+    """
+    lp_token: address = Gauge(_gauge).lp_token()
+    ERC20(lp_token).transferFrom(msg.sender, self, _value)
+    Gauge(_gauge).deposit(_value)
+    self.gauge_balances[_gauge][msg.sender] += _value
+
+
+@external
+def withdraw_gauge(_gauge: address, _value: uint256):
+    """
+    @dev Withdraw LP token (e.g. SWUSD) from Liquidity Gauge.
+    """
+    lp_token: address = Gauge(_gauge).lp_token()
+    Gauge(_gauge).withdraw(_value)
+    self.gauge_balances[_gauge][msg.sender] -= _value
+    ERC20(lp_token).transfer(msg.sender, _value)

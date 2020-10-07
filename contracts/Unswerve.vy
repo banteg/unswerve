@@ -22,6 +22,10 @@ interface Gauge:
     def withdraw(_value: uint256): nonpayable
 
 
+interface Minter:
+    def mint(_gauge: address): nonpayable
+
+
 implements: ERC20
 
 event Transfer:
@@ -46,6 +50,7 @@ WEEK: constant(uint256) = 7 * 86400  # all future times are rounded by week
 MAXTIME: constant(uint256) = 4 * 365 * 86400  # 4 years
 swrv: ERC20
 voting_escrow: VotingEscrow
+swrv_minter: Minter
 # gauge -> user -> balance
 gauge_balances: public(HashMap[address, HashMap[address, uint256]])
 
@@ -57,6 +62,7 @@ def __init__():
     self.decimals = 18
     self.minter = self
 
+    self.swrv_minter = Minter(0x2c988c3974AD7E604E276AE0294a7228DEf67974)
     self.swrv = ERC20(0xB8BAa0e4287890a5F79863aB62b7F175ceCbD433)
     self.swrv.approve(self.voting_escrow.address, MAX_UINT256)
 
@@ -200,7 +206,7 @@ def withdraw():
 # Gauge methods
 
 @external
-def deposit_gauge(_gauge: address, _value: uint256):
+def gauge_deposit(_gauge: address, _value: uint256):
     """
     @dev Deposit LP token (e.g. SWUSD) into Liquidity Gauge.
     """
@@ -211,7 +217,7 @@ def deposit_gauge(_gauge: address, _value: uint256):
 
 
 @external
-def withdraw_gauge(_gauge: address, _value: uint256):
+def gauge_withdraw(_gauge: address, _value: uint256):
     """
     @dev Withdraw LP token (e.g. SWUSD) from Liquidity Gauge.
     """
@@ -219,3 +225,11 @@ def withdraw_gauge(_gauge: address, _value: uint256):
     Gauge(_gauge).withdraw(_value)
     self.gauge_balances[_gauge][msg.sender] -= _value
     ERC20(lp_token).transfer(msg.sender, _value)
+
+# Minter methods
+
+@external
+def gauge_mint(_gauge: address):
+    self.swrv_minter.mint(_gauge)
+    # TODO: split rewards
+    self.voting_escrow.increase_amount(self.swrv.balanceOf(self))

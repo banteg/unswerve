@@ -28,15 +28,11 @@ minter: address
 
 
 @external
-def __init__(_name: String[64], _symbol: String[32], _decimals: uint256, _supply: uint256):
-    init_supply: uint256 = _supply * 10 ** _decimals
-    self.name = _name
-    self.symbol = _symbol
-    self.decimals = _decimals
-    self.balanceOf[msg.sender] = init_supply
-    self.total_supply = init_supply
-    self.minter = msg.sender
-    log Transfer(ZERO_ADDRESS, msg.sender, init_supply)
+def __init__():
+    self.name = "Liquid veSWRV"
+    self.symbol = "UNSWRV"
+    self.decimals = 18
+    self.minter = self
 
 
 @view

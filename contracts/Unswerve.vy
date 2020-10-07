@@ -151,3 +151,40 @@ def _burn(_to: address, _value: uint256):
     self.total_supply -= _value
     self.balanceOf[_to] -= _value
     log Transfer(_to, ZERO_ADDRESS, _value)
+
+# Unswerve methods
+
+@external
+def deposit(_value: uint256):
+    """
+    @dev Deposit SWRV into the Voting Escrow and get a 1:1 liquid claim on veSWRV.
+    """
+    self.swrv.transferFrom(msg.sender, self, _value)
+
+    amount: int128 = 0
+    end: uint256 = 0
+    amount, end = self.voting_escrow.locked(self)
+
+    if end == 0:
+        self.voting_escrow.create_lock(_value, block.timestamp + MAXTIME)
+    else:
+        self.voting_escrow.increase_amount(_value)
+
+    self._mint(msg.sender, _value)
+
+
+@external
+def withdraw():
+    """
+    @dev Reclaim SWRV from the Voting Escrow after the vote lock has expired.
+    """
+    locked: int128 = 0
+    end: uint256 = 0
+    locked, end = self.voting_escrow.locked(self)
+    
+    if block.timestamp >= end and locked != 0:
+        self.voting_escrow.withdraw()
+    
+    amount: uint256 = self.balanceOf[msg.sender]
+    self._burn(msg.sender, amount)
+    self.swrv.transfer(msg.sender, amount)

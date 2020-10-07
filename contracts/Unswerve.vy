@@ -6,6 +6,16 @@
 
 from vyper.interfaces import ERC20
 
+
+interface VotingEscrow:
+    def locked(_account: address) -> (int128, uint256): view
+    def balanceOf(_account: address) -> uint256: view
+    def create_lock(_value: uint256, _unlock_time: uint256): nonpayable
+    def increase_amount(_value: uint256): nonpayable
+    def increase_unlock_time(_unlock_time: uint256): nonpayable
+    def withdraw(): nonpayable
+
+
 implements: ERC20
 
 event Transfer:
@@ -26,6 +36,11 @@ allowances: HashMap[address, HashMap[address, uint256]]
 total_supply: uint256
 minter: address
 
+WEEK: constant(uint256) = 7 * 86400  # all future times are rounded by week
+MAXTIME: constant(uint256) = 4 * 365 * 86400  # 4 years
+swrv: ERC20
+voting_escrow: VotingEscrow
+
 
 @external
 def __init__():
@@ -33,6 +48,9 @@ def __init__():
     self.symbol = "UNSWRV"
     self.decimals = 18
     self.minter = self
+
+    self.swrv = ERC20(0xB8BAa0e4287890a5F79863aB62b7F175ceCbD433)
+    self.swrv.approve(self.voting_escrow.address, MAX_UINT256)
 
 
 @view
@@ -106,8 +124,8 @@ def approve(_spender : address, _value : uint256) -> bool:
     return True
 
 
-@external
-def mint(_to: address, _value: uint256):
+@internal
+def _mint(_to: address, _value: uint256):
     """
     @dev Mint an amount of the token and assigns it to an account.
          This encapsulates the modification of balances such that the
@@ -115,7 +133,6 @@ def mint(_to: address, _value: uint256):
     @param _to The account that will receive the created tokens.
     @param _value The amount that will be created.
     """
-    assert msg.sender == self.minter
     assert _to != ZERO_ADDRESS
     self.total_supply += _value
     self.balanceOf[_to] += _value
@@ -134,23 +151,3 @@ def _burn(_to: address, _value: uint256):
     self.total_supply -= _value
     self.balanceOf[_to] -= _value
     log Transfer(_to, ZERO_ADDRESS, _value)
-
-
-@external
-def burn(_value: uint256):
-    """
-    @dev Burn an amount of the token of msg.sender.
-    @param _value The amount that will be burned.
-    """
-    self._burn(msg.sender, _value)
-
-
-@external
-def burnFrom(_to: address, _value: uint256):
-    """
-    @dev Burn an amount of the token from a given account.
-    @param _to The account whose tokens will be burned.
-    @param _value The amount that will be burned.
-    """
-    self.allowances[_to][msg.sender] -= _value
-    self._burn(_to, _value)
